@@ -1,0 +1,48 @@
+/*
+ * This file is part of choco-solver, http://choco-solver.org/
+ * Copyright (c) 1999, IMT Atlantique.
+ * SPDX-License-Identifier: BSD-3-Clause.
+ * See LICENSE file in the project root for full license information.
+ */
+package org.chocosolver.solver.variables.impl.scheduler;
+
+import org.chocosolver.solver.variables.events.IntEventType;
+import org.chocosolver.util.iterators.EvtScheduler;
+
+/**
+ * Created by cprudhom on 17/06/15.
+ * Project: choco.
+ */
+public class BoolEvtScheduler implements EvtScheduler<IntEventType> {
+
+    private int i = 0;
+
+    @Override
+    public void init(int mask) {
+        i = 0;
+    }
+
+    @Override
+    public int select(int mask) {
+        if(mask > 0){
+            return 0;
+        }else{
+            return 1;
+        }
+    }
+
+    @Override
+    public boolean hasNext() {
+        return i < 2; // Only INSTANTIATE and BOUND
+    }
+
+    @Override
+    public int next() {
+        return i++;
+    }
+
+    @Override
+    public void remove() {
+        throw new UnsupportedOperationException();
+    }
+}

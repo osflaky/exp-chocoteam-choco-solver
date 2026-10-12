@@ -1,0 +1,4 @@
+This file is part of ${project}, http://choco-solver.org/
+Copyright (c) ${project.inceptionYear}, ${owner}.
+SPDX-License-Identifier: BSD-3-Clause.
+See LICENSE file in the project root for full license information.

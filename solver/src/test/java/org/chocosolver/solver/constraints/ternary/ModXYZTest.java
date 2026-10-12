@@ -1,0 +1,284 @@
+/*
+ * This file is part of choco-solver, http://choco-solver.org/
+ * Copyright (c) 1999, IMT Atlantique.
+ * SPDX-License-Identifier: BSD-3-Clause.
+ * See LICENSE file in the project root for full license information.
+ */
+package org.chocosolver.solver.constraints.ternary;
+
+import org.chocosolver.solver.Model;
+import org.chocosolver.solver.Providers;
+import org.chocosolver.solver.SettingsBuilder;
+import org.chocosolver.solver.constraints.Constraint;
+import org.chocosolver.solver.constraints.ConstraintsName;
+import org.chocosolver.solver.constraints.binary.PropModXY;
+import org.chocosolver.solver.exception.ContradictionException;
+import org.chocosolver.solver.exception.SolverException;
+import org.chocosolver.solver.search.strategy.Search;
+import org.chocosolver.solver.variables.IntVar;
+import org.testng.Assert;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
+import static org.chocosolver.solver.search.strategy.Search.randomSearch;
+
+/**
+ * <br/>
+ *
+ * @author Arthur Godet
+ * @since 29/03/2019
+ */
+public class ModXYZTest extends AbstractTernaryTest {
+
+	@Override
+	protected int validTuple(int vx, int vy, int vz) {
+		return (vy != 0 && vz == vx%vy) ? 1 : 0;
+	}
+
+	@Override
+	protected Constraint make(IntVar[] vars, Model s) {
+		return s.mod(vars[0], vars[1], vars[2]);
+	}
+
+	@Override
+	public Model modeler(int[][] domains, boolean bounded, long seed) {
+		Model s = new Model();
+		IntVar[] vars = new IntVar[3];
+		for (int i = 0; i < 3; i++) {
+			if (bounded) {
+				vars[i] = s.intVar("x_" + i, domains[i][0], domains[i][1], true);
+			} else {
+				vars[i] = s.intVar("x_" + i, domains[i]);
+			}
+		}
+		if(!vars[1].isInstantiatedTo(0)) {
+			Constraint div = make(vars, s);
+			div.post();
+		} else {
+			s.arithm(vars[1], "!=", 0).post();
+		}
+		s.getSolver().setSearch(randomSearch(vars,seed));
+		return s;
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarNegValues() throws ContradictionException {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", -5, 5);
+		IntVar y = model.intVar("y", -3, 3);
+		IntVar z = model.intVar("z", -5,5);
+		model.post(new Constraint("X MOD Y = Z", new PropModXYZ(x, y, z)));
+		model.getSolver().propagate();
+		Assert.assertEquals(z.getDomainSize(), 5);
+		Assert.assertEquals(y.getDomainSize(), 6);
+		Assert.assertEquals(x.getDomainSize(), 11);
+		for(int i = -5; i<=5; i++) {
+			Assert.assertTrue(x.contains(i));
+		}
+		for(int j = -2; j<=2; j++) {
+			Assert.assertTrue(z.contains(j));
+		}
+		for(int k = -3; k<=3; k++) {
+			if(k != 0) {
+				Assert.assertTrue(y.contains(k));
+			} else {
+				Assert.assertFalse(y.contains(k));
+			}
+		}
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarBigValues() throws ContradictionException {
+		Model model = new Model("model");
+		int maxVal = 100_000;
+		IntVar x = model.intVar("x", -maxVal, maxVal);
+		IntVar y = model.intVar("y", -maxVal, maxVal, false);
+		IntVar z = model.intVar("z", -maxVal, maxVal);
+		model.mod(x, y, z).post();
+		model.getSolver().propagate();
+		model.getSolver().limitSolution(10L);
+		while (model.getSolver().solve());
+		Assert.assertEquals(10L, model.getSolver().getSolutionCount());
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarNegValues2() throws ContradictionException {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", -5, 0);
+		IntVar y = model.intVar("y", -3, 3);
+		IntVar z = model.intVar("z", -5,5);
+		model.mod(x, y, z).post();
+		model.getSolver().propagate();
+		Assert.assertEquals(z.getDomainSize(), 3);
+		Assert.assertEquals(x.getDomainSize(), 6);
+		Assert.assertEquals(y.getDomainSize(), 6);
+		for(int i = -5; i<=0; i++) {
+			Assert.assertTrue(x.contains(i));
+		}
+		for(int j = -2; j<=0; j++) {
+			Assert.assertTrue(z.contains(j));
+		}
+		for(int k = -3; k<=3; k++) {
+			if(k == 0) {
+				Assert.assertFalse(y.contains(k));
+			} else {
+				Assert.assertTrue(y.contains(k));
+			}
+		}
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarNegValues3() throws ContradictionException {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", -5, 5);
+		IntVar y = model.intVar("y", new int[]{-3, -2, 0, 2, 3});
+		IntVar z = model.intVar("z", -5,0);
+		model.mod(x, y, z).post();
+		model.getSolver().propagate();
+		Assert.assertEquals(z.getDomainSize(), 3);
+		Assert.assertEquals(x.getDomainSize(), 9);
+		Assert.assertEquals(y.getDomainSize(), 4);
+		for(int i = -5; i<=0; i++) {
+			Assert.assertTrue(x.contains(i));
+		}
+		Assert.assertTrue(x.contains(2));
+		Assert.assertTrue(x.contains(3));
+		Assert.assertTrue(x.contains(4));
+		for(int j = -2; j<=0; j++) {
+			Assert.assertTrue(z.contains(j));
+		}
+		for(int k = -3; k<=3; k++) {
+			if(k==0 || k==-1 || k==1) {
+				Assert.assertFalse(y.contains(k));
+			} else {
+				Assert.assertTrue(y.contains(k));
+			}
+		}
+	}
+
+	@Test(groups="1s", timeOut=60000, expectedExceptions = SolverException.class)
+	public void testMod3VarsZeroDiv() {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", 0,9);
+		IntVar y = model.intVar("y", 0, 0);
+		IntVar z = model.intVar("z", 0, 0);
+		model.mod(x, y, z).post();
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarsIntoMod2VarsMod() {
+		Model model = new Model(SettingsBuilder.init().setEnableTableSubstitution(false));
+		System.out.printf("%s\n", model.getClass());
+		IntVar x = model.intVar("x", 0,9);
+		IntVar y = model.intVar("y", 5);
+		IntVar z = model.intVar("z", 0, 9);
+		Constraint cstr = model.mod(x, y, z);
+		Assert.assertTrue(cstr.getPropagator(0) instanceof PropModXY);
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarsTable() {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", 0,9);
+		IntVar y = model.intVar("y", 0, 9);
+		IntVar z = model.intVar("z", 0, 9);
+		model.mod(x, y, z).post();
+		Assert.assertEquals(model.getNbCstrs(), 1);
+		Constraint constraint = model.getCstrs()[0];
+        Assert.assertEquals(constraint.getName(), ConstraintsName.TABLE);
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarsPropModSmallDomain() {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", 1,100);
+		IntVar y = model.intVar("y", 1, 100);
+		IntVar z = model.intVar("z", 1, 100);
+		model.mod(x, y, z).post();
+		Assert.assertEquals(model.getNbCstrs(), 1);
+		Constraint constraint = model.getCstrs()[0];
+		Assert.assertEquals(constraint.getPropagators().length, 1);
+		Assert.assertSame(constraint.getPropagators()[0].getClass(), PropModXYZ.class);
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3VarsBoundedPropag() throws ContradictionException {
+		Model model = new Model("model");
+		IntVar x = model.intVar("x", 0,100_000);
+		IntVar y = model.intVar("y", 0, 9);
+		IntVar z = model.intVar("z", -10, 10);
+		model.mod(x, y, z).post();
+		model.getSolver().propagate();
+
+        Assert.assertEquals(z.getLB(), 0);
+        Assert.assertEquals(z.getUB(), 8);
+
+        Assert.assertEquals(y.getLB(), 1);
+	}
+
+
+
+	@Test(groups = "1s", timeOut = 60000, dataProvider = "trueOrFalse", dataProviderClass = Providers.class)
+	public void testMats1(boolean tableSubs) {
+		Model model = new Model("model", SettingsBuilder.prod().setEnableTableSubstitution(tableSubs));
+		IntVar x = model.intVar("A", new int[]{-8,-1});
+		IntVar y = model.intVar("B", new int[]{-8,-7,-2});
+		model.mod(y, y, x).post();
+		model.getSolver().findAllSolutions();
+		Assert.assertEquals(model.getSolver().getSolutionCount(), 0);
+	}
+
+	@Test(groups="1s", timeOut=60000)
+	public void testMod3Perf() {
+		Model model = new Model("model");
+		int maxVal = 1_000_000;
+		int size = 1000;
+		int mod = 60;
+		IntVar[] x = model.intVarArray("x", size, -maxVal, maxVal, true);
+		IntVar[] y = model.intVarArray("y", size, new int[]{-12, 30, 60});
+		IntVar[] z = model.intVarArray("y", size, -(mod-1), mod-1, false);
+		for (int i = 0; i<x.length; i++) {
+			model.mod(x[i], y[i], z[i]).post();
+			new Constraint("modulo", new PropModXYZ(x[i], y[i], z[i])).post();
+		}
+		model.allDifferent(x).post();
+		model.getSolver().setSearch(Search.inputOrderUBSearch(y), Search.inputOrderLBSearch(x));
+		model.getSolver().solve();
+		for (int i = 0; i<x.length; i++) {
+			Assert.assertEquals(x[i].getValue() % y[i].getValue(), z[i].getValue());
+		}
+	}
+
+	@DataProvider
+	public Object[][] cases() {
+		return new Object[][]{
+			// {x, y, expected_%}
+			{-7,  3, -1},
+			{ 7,  3,  1},
+			{ 7, -3,  1},
+			{-7, -3, -1},
+			{ 6,  3,  0},
+			{-6,  3,  0},
+			{ 0,  3,  0},
+			{ 1,  3,  1},
+			{-1,  3, -1},
+		};
+	}
+
+	@Test(groups = "1s", timeOut = 60000, dataProvider = "cases")
+	public void testModNegativeCases(Object[] values) {
+		int x = (int) values[0];
+		int y = (int) values[1];
+		int z = (int) values[2];
+		Model model = new Model(SettingsBuilder.init().setLCG(true));
+		IntVar xVar = model.intVar("x", x-10, x+10, true);
+		IntVar yVar = model.intVar("y", y, y+2, true);
+		model.arithm(xVar, "=", x).post();
+		model.arithm(yVar, "=", y).post();
+		IntVar modVar = xVar.mod(yVar).intVar();
+		while (model.getSolver().solve()) {
+			Assert.assertEquals(z, modVar.getValue());
+		}
+		Assert.assertEquals(1L, model.getSolver().getSolutionCount());
+	}
+}
